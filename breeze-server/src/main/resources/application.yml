@@ -1,0 +1,33 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: breeze-server
+  datasource:
+    url: "jdbc:mysql://localhost:3306/breeze?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true"
+    username: root
+    password: 12345678
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+mybatis-flex:
+  global-config:
+    print-banner: false
+    normal-value-of-logic-delete: 0   # 逻辑删除:正常值=0,查询自动过滤 deleted=0
+  configuration:
+    map-underscore-to-camel-case: true   # @Select 原生 SQL 下划线列→驼峰属性(BaseMapper 查询靠 @Table camelToUnderline)
+
+# 业务自定义配置(echonote 风格的自定义命名空间)
+breeze:
+  jwt:
+    # 本地开发 secret,直接入库(无外泄价值);生产前替换为环境变量
+    secret: breeze-dev-only-secret-change-me-in-prod-0123456789abcdef0123456789abcdef
+    ttl-hours: 24
+
+logging:
+  level:
+    com.breeze: debug
