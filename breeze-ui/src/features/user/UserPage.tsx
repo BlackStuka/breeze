@@ -4,27 +4,42 @@ import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { http } from '@/lib/api'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import type { PageResult, UserResp } from '@/types'
 import { PageHeader } from '@/components/PageHeader'
 import { PermissionButton } from '@/components/PermissionButton'
 import { DataTable } from '@/components/DataTable'
-import { Button } from '@/components/ui/button'
+import { Pagination } from '@/components/Pagination'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardFooter } from '@/components/ui/card'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { UserFormDialog } from './UserFormDialog'
 
 export default function UserPage() {
 	const [page, setPage] = useState(1)
-	const [size] = useState(10)
+	const [size, setSize] = useState(10)
 	const [search, setSearch] = useState('')
+	const debouncedSearch = useDebouncedValue(search, 300)
 	const [dialogOpen, setDialogOpen] = useState(false)
 	const [editing, setEditing] = useState<UserResp | null>(null)
+	const [pendingDelete, setPendingDelete] = useState<UserResp | null>(null)
 	const queryClient = useQueryClient()
 
-	const { data } = useQuery({
-		queryKey: ['users', page, size, search],
+	const { data, isLoading } = useQuery({
+		queryKey: ['users', page, size, debouncedSearch],
 		queryFn: () =>
 			http.get<PageResult<UserResp>>('/users', {
-				params: { pageNum: page, pageSize: size, username: search || undefined },
+				params: { pageNum: page, pageSize: size, username: debouncedSearch || undefined },
 			}),
 	})
 
@@ -42,12 +57,20 @@ export default function UserPage() {
 		{ header: '用户名', accessorKey: 'username' },
 		{ header: '昵称', cell: ({ row }) => row.original.nickname ?? '-' },
 		{ header: '邮箱', cell: ({ row }) => row.original.email ?? '-' },
-		{ header: '状态', cell: ({ row }) => (row.original.status === 1 ? '启用' : '禁用') },
+		{
+			header: '状态',
+			cell: ({ row }) =>
+				row.original.status === 1 ? (
+					<Badge variant="secondary">启用</Badge>
+				) : (
+					<Badge variant="destructive">禁用</Badge>
+				),
+		},
 		{ header: '创建时间', accessorKey: 'createTime' },
 		{
 			header: '操作',
 			cell: ({ row }) => (
-				<div className="flex gap-1">
+				<div className="flex items-center gap-2">
 					<PermissionButton
 						size="sm"
 						variant="outline"
@@ -63,9 +86,7 @@ export default function UserPage() {
 						size="sm"
 						variant="outline"
 						code="system:user:remove"
-						onClick={() => {
-							if (confirm('确认删除该用户?')) deleteMutation.mutate(row.original.id)
-						}}
+						onClick={() => setPendingDelete(row.original)}
 					>
 						删除
 					</PermissionButton>
@@ -75,7 +96,6 @@ export default function UserPage() {
 	]
 
 	const total = Number(data?.total ?? 0)
-	const totalPages = Math.ceil(total / size) || 1
 
 	return (
 		<div>
@@ -90,41 +110,60 @@ export default function UserPage() {
 							setDialogOpen(true)
 						}}
 					>
-						<Plus className="mr-1 size-4" />
+						<Plus className="size-4" />
 						新增用户
 					</PermissionButton>
 				}
 			/>
-			<div className="mb-3">
-				<Input
-					placeholder="按用户名搜索"
-					value={search}
-					onChange={(e) => {
-						setSearch(e.target.value)
-						setPage(1)
-					}}
-					className="max-w-xs"
-					onKeyDown={(e) => {
-						if (e.key === 'Enter') refresh()
-					}}
-				/>
-			</div>
-			<DataTable columns={columns} data={data?.records ?? []} />
-			<div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-				<span>共 {total} 条</span>
-				<div className="flex items-center gap-2">
-					<Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-						上一页
-					</Button>
-					<span className="px-1">
-						{page} / {totalPages}
-					</span>
-					<Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-						下一页
-					</Button>
+			<Card className="gap-0 p-0">
+				<div className="flex items-center gap-2 border-b px-4 py-3">
+					<Input
+						placeholder="按用户名搜索"
+						value={search}
+						onChange={(e) => {
+							setSearch(e.target.value)
+							setPage(1)
+						}}
+						className="max-w-xs"
+					/>
 				</div>
-			</div>
+				<DataTable columns={columns} data={data?.records ?? []} loading={isLoading} bordered={false} />
+				<CardFooter>
+					<Pagination
+						page={page}
+						pageSize={size}
+						total={total}
+						onPageChange={setPage}
+						onPageSizeChange={(s) => {
+							setSize(s)
+							setPage(1)
+						}}
+					/>
+				</CardFooter>
+			</Card>
 			<UserFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} onSaved={refresh} />
+			<AlertDialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>确认删除</AlertDialogTitle>
+						<AlertDialogDescription>
+							确认删除用户「{pendingDelete?.username}」?此操作不可撤销。
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>取消</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							onClick={() => {
+								if (pendingDelete) deleteMutation.mutate(pendingDelete.id)
+								setPendingDelete(null)
+							}}
+						>
+							删除
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	)
 }

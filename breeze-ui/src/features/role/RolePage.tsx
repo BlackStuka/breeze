@@ -1,32 +1,56 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Ellipsis, Plus, Trash2 } from 'lucide-react'
 import type { ColumnDef } from '@tanstack/react-table'
 import { http } from '@/lib/api'
+import { useDebouncedValue } from '@/lib/useDebouncedValue'
 import type { PageResult, RoleResp } from '@/types'
 import { PageHeader } from '@/components/PageHeader'
 import { PermissionButton } from '@/components/PermissionButton'
 import { DataTable } from '@/components/DataTable'
-import { Button } from '@/components/ui/button'
+import { Pagination } from '@/components/Pagination'
 import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardFooter } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useAuthStore } from '@/store/auth'
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { RoleFormDialog } from './RoleFormDialog'
 import { MenuAssignDialog } from './MenuAssignDialog'
 
 export default function RolePage() {
 	const [page, setPage] = useState(1)
-	const [size] = useState(10)
+	const [size, setSize] = useState(10)
 	const [search, setSearch] = useState('')
+	const debouncedSearch = useDebouncedValue(search, 300)
 	const [formOpen, setFormOpen] = useState(false)
 	const [editing, setEditing] = useState<RoleResp | null>(null)
 	const [assignRole, setAssignRole] = useState<RoleResp | null>(null)
+	const [pendingDelete, setPendingDelete] = useState<RoleResp | null>(null)
 	const queryClient = useQueryClient()
+	const canRemove = useAuthStore((s) => s.hasAuthority('system:role:remove'))
 
-	const { data } = useQuery({
-		queryKey: ['roles', page, size, search],
+	const { data, isLoading } = useQuery({
+		queryKey: ['roles', page, size, debouncedSearch],
 		queryFn: () =>
 			http.get<PageResult<RoleResp>>('/roles', {
-				params: { pageNum: page, pageSize: size, roleName: search || undefined },
+				params: { pageNum: page, pageSize: size, roleName: debouncedSearch || undefined },
 			}),
 	})
 
@@ -44,11 +68,19 @@ export default function RolePage() {
 		{ header: '角色名', accessorKey: 'roleName' },
 		{ header: '编码', accessorKey: 'roleCode' },
 		{ header: '排序', accessorKey: 'sort' },
-		{ header: '状态', cell: ({ row }) => (row.original.status === 1 ? '启用' : '禁用') },
+		{
+			header: '状态',
+			cell: ({ row }) =>
+				row.original.status === 1 ? (
+					<Badge variant="secondary">启用</Badge>
+				) : (
+					<Badge variant="destructive">禁用</Badge>
+				),
+		},
 		{
 			header: '操作',
 			cell: ({ row }) => (
-				<div className="flex gap-1">
+				<div className="flex items-center gap-2">
 					<PermissionButton
 						size="sm"
 						variant="outline"
@@ -68,23 +100,30 @@ export default function RolePage() {
 					>
 						分配菜单
 					</PermissionButton>
-					<PermissionButton
-						size="sm"
-						variant="outline"
-						code="system:role:remove"
-						onClick={() => {
-							if (confirm('确认删除该角色?')) deleteMutation.mutate(row.original.id)
-						}}
-					>
-						删除
-					</PermissionButton>
+					{canRemove && (
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="ghost" size="icon-sm" aria-label="更多操作">
+									<Ellipsis />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end" className="w-36">
+								<DropdownMenuItem
+									variant="destructive"
+									onClick={() => setPendingDelete(row.original)}
+								>
+									<Trash2 />
+									删除
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
+					)}
 				</div>
 			),
 		},
 	]
 
 	const total = Number(data?.total ?? 0)
-	const totalPages = Math.ceil(total / size) || 1
 
 	return (
 		<div>
@@ -98,39 +137,61 @@ export default function RolePage() {
 							setFormOpen(true)
 						}}
 					>
-						<Plus className="mr-1 size-4" />
+						<Plus className="size-4" />
 						新增角色
 					</PermissionButton>
 				}
 			/>
-			<div className="mb-3">
-				<Input
-					placeholder="按角色名搜索"
-					value={search}
-					onChange={(e) => {
-						setSearch(e.target.value)
-						setPage(1)
-					}}
-					className="max-w-xs"
-				/>
-			</div>
-			<DataTable columns={columns} data={data?.records ?? []} />
-			<div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
-				<span>共 {total} 条</span>
-				<div className="flex items-center gap-2">
-					<Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-						上一页
-					</Button>
-					<span className="px-1">
-						{page} / {totalPages}
-					</span>
-					<Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
-						下一页
-					</Button>
+			<Card className="gap-0 p-0">
+				<div className="flex items-center gap-2 border-b px-4 py-3">
+					<Input
+						placeholder="按角色名搜索"
+						value={search}
+						onChange={(e) => {
+							setSearch(e.target.value)
+							setPage(1)
+						}}
+						className="max-w-xs"
+					/>
 				</div>
-			</div>
+				<DataTable columns={columns} data={data?.records ?? []} loading={isLoading} bordered={false} />
+				<CardFooter>
+					<Pagination
+						page={page}
+						pageSize={size}
+						total={total}
+						onPageChange={setPage}
+						onPageSizeChange={(s) => {
+							setSize(s)
+							setPage(1)
+						}}
+					/>
+				</CardFooter>
+			</Card>
 			<RoleFormDialog open={formOpen} onOpenChange={setFormOpen} editing={editing} onSaved={refresh} />
 			<MenuAssignDialog role={assignRole} onOpenChange={(v) => !v && setAssignRole(null)} />
+			<AlertDialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>确认删除</AlertDialogTitle>
+						<AlertDialogDescription>
+							确认删除角色「{pendingDelete?.roleName}」?此操作不可撤销。
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>取消</AlertDialogCancel>
+						<AlertDialogAction
+							variant="destructive"
+							onClick={() => {
+								if (pendingDelete) deleteMutation.mutate(pendingDelete.id)
+								setPendingDelete(null)
+							}}
+						>
+							删除
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</div>
 	)
 }

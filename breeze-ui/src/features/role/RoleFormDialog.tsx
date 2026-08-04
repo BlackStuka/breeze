@@ -8,6 +8,7 @@ import type { RoleResp } from '@/types'
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -15,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RhfSelect } from '@/components/RhfSelect'
+import { FormError } from '@/components/FormError'
 
 const schema = z.object({
 	roleName: z.string().min(1, '请输入角色名'),
@@ -37,6 +40,7 @@ export function RoleFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 		register,
 		handleSubmit,
 		reset,
+		control,
 		formState: { errors, isSubmitting },
 	} = useForm<FormValues>({
 		resolver: zodResolver(schema),
@@ -68,30 +72,46 @@ export function RoleFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 			<DialogContent className="max-w-md">
 				<DialogHeader>
 					<DialogTitle>{isEdit ? '编辑角色' : '新增角色'}</DialogTitle>
+					<DialogDescription>{isEdit ? '修改角色信息。' : '创建一个新的系统角色。'}</DialogDescription>
 				</DialogHeader>
-				<form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-					<div className="space-y-1">
-						<Label>角色名</Label>
-						<Input disabled={isEdit} {...register('roleName')} />
-						{errors.roleName && <p className="text-xs text-destructive">{errors.roleName.message}</p>}
+				<form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+					<div className="grid gap-2">
+						<Label htmlFor="role-roleName">角色名</Label>
+						<Input
+							id="role-roleName"
+							disabled={isEdit}
+							aria-invalid={!!errors.roleName}
+							{...register('roleName')}
+						/>
+						<FormError message={errors.roleName?.message} />
 					</div>
-					<div className="space-y-1">
-						<Label>编码</Label>
-						<Input disabled={isEdit} {...register('roleCode')} />
+					<div className="grid gap-2">
+						<Label htmlFor="role-roleCode">编码</Label>
+						<Input
+							id="role-roleCode"
+							disabled={isEdit}
+							aria-invalid={!!errors.roleCode}
+							{...register('roleCode')}
+						/>
+						<FormError message={errors.roleCode?.message} />
 					</div>
-					<div className="space-y-1">
-						<Label>排序</Label>
-						<Input type="number" {...register('sort', { valueAsNumber: true })} />
+					<div className="grid gap-2">
+						<Label htmlFor="role-sort">排序</Label>
+						<Input id="role-sort" type="number" {...register('sort', { valueAsNumber: true })} />
 					</div>
-					<div className="space-y-1">
-						<Label>状态</Label>
-						<select
-							className="w-full rounded-md border px-2 py-2 text-sm"
-							{...register('status', { valueAsNumber: true })}
-						>
-							<option value={1}>启用</option>
-							<option value={0}>禁用</option>
-						</select>
+					<div className="grid gap-2">
+						<Label htmlFor="role-status">状态</Label>
+						<RhfSelect
+							id="role-status"
+							control={control}
+							name="status"
+							className="w-full"
+							options={[
+								{ label: '启用', value: '1' },
+								{ label: '禁用', value: '0' },
+							]}
+							parse={Number}
+						/>
 					</div>
 					<DialogFooter>
 						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

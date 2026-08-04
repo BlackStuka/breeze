@@ -6,6 +6,7 @@ import type { Menu, RoleResp } from '@/types'
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -52,13 +53,13 @@ export function MenuAssignDialog({ role, onOpenChange }: Props) {
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[80vh] max-w-lg overflow-auto">
+			<DialogContent className="max-h-[80vh] max-w-md overflow-auto">
 				<DialogHeader>
 					<DialogTitle>分配菜单 · {role?.roleName}</DialogTitle>
+					<DialogDescription>
+						全量覆盖:保存后角色将拥有下方勾选的菜单,未勾选的会被移除。
+					</DialogDescription>
 				</DialogHeader>
-				<p className="text-sm text-muted-foreground">
-					全量覆盖:保存后角色将拥有下方勾选的菜单,未勾选的会被移除。
-				</p>
 				<div className="space-y-2 py-2">
 					{menus?.map((m) => (
 						<label key={m.id} className="flex items-center gap-2 text-sm">

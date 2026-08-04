@@ -8,6 +8,7 @@ import type { UserResp } from '@/types'
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -15,6 +16,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RhfSelect } from '@/components/RhfSelect'
+import { FormError } from '@/components/FormError'
 
 // zod 4:z.coerce.number() 的 input 类型是 unknown,与 RHF resolver 不兼容,
 // 故 number 字段用 z.number() + RHF valueAsNumber
@@ -41,6 +44,7 @@ export function UserFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 		register,
 		handleSubmit,
 		reset,
+		control,
 		formState: { errors, isSubmitting },
 	} = useForm<FormValues>({
 		resolver: zodResolver(schema),
@@ -89,40 +93,48 @@ export function UserFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 			<DialogContent className="max-w-md">
 				<DialogHeader>
 					<DialogTitle>{isEdit ? '编辑用户' : '新增用户'}</DialogTitle>
+					<DialogDescription>{isEdit ? '修改用户基本信息。' : '创建一个新的系统用户账号。'}</DialogDescription>
 				</DialogHeader>
-				<form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-					<div className="space-y-1">
-						<Label>用户名</Label>
-						<Input disabled={isEdit} {...register('username')} />
-						{errors.username && (
-							<p className="text-xs text-destructive">{errors.username.message}</p>
-						)}
+				<form onSubmit={handleSubmit(onSubmit)} className="grid gap-4">
+					<div className="grid gap-2">
+						<Label htmlFor="user-username">用户名</Label>
+						<Input
+							id="user-username"
+							disabled={isEdit}
+							aria-invalid={!!errors.username}
+							{...register('username')}
+						/>
+						<FormError message={errors.username?.message} />
 					</div>
-					<div className="space-y-1">
-						<Label>密码{isEdit && '(改密走重置)'}</Label>
-						<Input type="password" disabled={isEdit} {...register('password')} />
+					<div className="grid gap-2">
+						<Label htmlFor="user-password">密码{isEdit && '(改密走重置)'}</Label>
+						<Input id="user-password" type="password" disabled={isEdit} {...register('password')} />
 					</div>
-					<div className="space-y-1">
-						<Label>昵称</Label>
-						<Input {...register('nickname')} />
+					<div className="grid gap-2">
+						<Label htmlFor="user-nickname">昵称</Label>
+						<Input id="user-nickname" {...register('nickname')} />
 					</div>
-					<div className="space-y-1">
-						<Label>邮箱</Label>
-						<Input {...register('email')} />
+					<div className="grid gap-2">
+						<Label htmlFor="user-email">邮箱</Label>
+						<Input id="user-email" {...register('email')} />
 					</div>
-					<div className="space-y-1">
-						<Label>手机</Label>
-						<Input {...register('phone')} />
+					<div className="grid gap-2">
+						<Label htmlFor="user-phone">手机</Label>
+						<Input id="user-phone" {...register('phone')} />
 					</div>
-					<div className="space-y-1">
-						<Label>状态</Label>
-						<select
-							className="w-full rounded-md border px-2 py-2 text-sm"
-							{...register('status', { valueAsNumber: true })}
-						>
-							<option value={1}>启用</option>
-							<option value={0}>禁用</option>
-						</select>
+					<div className="grid gap-2">
+						<Label htmlFor="user-status">状态</Label>
+						<RhfSelect
+							id="user-status"
+							control={control}
+							name="status"
+							className="w-full"
+							options={[
+								{ label: '启用', value: '1' },
+								{ label: '禁用', value: '0' },
+							]}
+							parse={Number}
+						/>
 					</div>
 					<DialogFooter>
 						<Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
