@@ -241,8 +241,8 @@ export default function AppLayout() {
 							aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
 							onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
 						>
-							<Sun className="hidden size-4 dark:block" />
-							<Moon className="size-4 dark:hidden" />
+							<Sun className="hidden dark:block" />
+							<Moon className="dark:hidden" />
 						</Button>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>

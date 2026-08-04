@@ -137,7 +137,7 @@ export default function RolePage() {
 							setFormOpen(true)
 						}}
 					>
-						<Plus className="size-4" />
+						<Plus data-icon="inline-start" />
 						新增角色
 					</PermissionButton>
 				}

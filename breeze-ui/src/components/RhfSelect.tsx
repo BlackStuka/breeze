@@ -23,8 +23,9 @@ interface Props<T extends FieldValues> {
 	parse?: (v: string) => unknown
 	placeholder?: string
 	className?: string
-	/** 透传到 SelectTrigger,配合外层 <Label htmlFor> 实现点击 label 聚焦/展开。 */
+	/** 透传到 SelectTrigger,配合外层 <FieldLabel htmlFor> 实现点击 label 聚焦/展开。 */
 	id?: string
+	'aria-invalid'?: boolean
 }
 
 /**
@@ -39,6 +40,7 @@ export function RhfSelect<T extends FieldValues>({
 	placeholder,
 	className,
 	id,
+	'aria-invalid': ariaInvalid,
 }: Props<T>) {
 	return (
 		<Controller
@@ -49,7 +51,7 @@ export function RhfSelect<T extends FieldValues>({
 					value={field.value != null ? String(field.value) : undefined}
 					onValueChange={(v) => field.onChange(parse ? parse(v) : v)}
 				>
-					<SelectTrigger id={id} className={className}>
+					<SelectTrigger id={id} className={className} aria-invalid={ariaInvalid}>
 						<SelectValue placeholder={placeholder} />
 					</SelectTrigger>
 					<SelectContent>

@@ -9,7 +9,7 @@ interface Props {
 export function PageHeader({ title, description, actions }: Props) {
 	return (
 		<div className="mb-4 flex items-center justify-between">
-			<div className="space-y-1">
+			<div className="flex flex-col gap-1">
 				<h1 className="text-2xl font-semibold">{title}</h1>
 				{description && <p className="text-sm text-muted-foreground">{description}</p>}
 			</div>

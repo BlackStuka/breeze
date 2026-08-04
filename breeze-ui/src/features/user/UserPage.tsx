@@ -110,7 +110,7 @@ export default function UserPage() {
 							setDialogOpen(true)
 						}}
 					>
-						<Plus className="size-4" />
+						<Plus data-icon="inline-start" />
 						新增用户
 					</PermissionButton>
 				}
