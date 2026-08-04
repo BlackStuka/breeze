@@ -95,7 +95,7 @@ export default function RolePage() {
 					<PermissionButton
 						size="sm"
 						variant="outline"
-						code="system:role:edit"
+						code="system:role:assign-menu"
 						onClick={() => setAssignRole(row.original)}
 					>
 						分配菜单

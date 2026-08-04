@@ -5,6 +5,7 @@ import com.breeze.common.response.Result;
 import com.breeze.security.constant.Permissions;
 import com.breeze.system.dto.PageQuery;
 import com.breeze.system.dto.RoleMenuAssignRequest;
+import com.breeze.system.dto.RoleMenuIdsResponse;
 import com.breeze.system.dto.RoleSaveRequest;
 import com.breeze.system.entity.SysRole;
 import com.breeze.system.service.RoleService;
@@ -54,9 +55,15 @@ public class RoleController {
 		return Result.success();
 	}
 
+	@GetMapping("/{id}/menus")
+	@PreAuthorize("hasAuthority('" + Permissions.ROLE_ASSIGN_MENU + "')")
+	public Result<RoleMenuIdsResponse> menuIds(@PathVariable Long id) {
+		return Result.success(new RoleMenuIdsResponse(roleService.menuIds(id)));
+	}
+
 	/** 分配菜单(全量覆盖)。 */
 	@PutMapping("/{id}/menus")
-	@PreAuthorize("hasAuthority('" + Permissions.ROLE_EDIT + "')")
+	@PreAuthorize("hasAuthority('" + Permissions.ROLE_ASSIGN_MENU + "')")
 	public Result<Void> assignMenus(@PathVariable Long id, @RequestBody @Valid RoleMenuAssignRequest req) {
 		roleService.assignMenus(id, req.menuIds());
 		return Result.success();

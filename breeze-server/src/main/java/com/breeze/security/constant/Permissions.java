@@ -2,7 +2,7 @@ package com.breeze.security.constant;
 
 /**
  * 权限字符串统一常量。@PreAuthorize 引用这些常量,避免散落的魔法字符串。
- * 与 Flyway V1 种子菜单的 perms 字段一一对应。
+ * 与 Flyway V1/V2 菜单种子的 perms 字段一一对应。
  */
 public final class Permissions {
 
@@ -21,6 +21,7 @@ public final class Permissions {
 	public static final String ROLE_ADD = "system:role:add";
 	public static final String ROLE_EDIT = "system:role:edit";
 	public static final String ROLE_REMOVE = "system:role:remove";
+	public static final String ROLE_ASSIGN_MENU = "system:role:assign-menu";
 
 	// 菜单
 	public static final String MENU_LIST = "system:menu:list";

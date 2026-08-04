@@ -14,6 +14,17 @@ export interface UserResp {
 	phone: string | null
 	status: number
 	createTime: string
+	roleIds: string[]
+}
+
+export interface UserSaveRequest {
+	username?: string
+	password?: string
+	nickname?: string
+	email?: string
+	phone?: string
+	status: number
+	roleIds: string[]
 }
 
 export interface RoleResp {
@@ -23,6 +34,10 @@ export interface RoleResp {
 	sort: number
 	status: number
 	createTime: string
+}
+
+export interface RoleMenuIdsResp {
+	menuIds: string[]
 }
 
 export interface Menu {

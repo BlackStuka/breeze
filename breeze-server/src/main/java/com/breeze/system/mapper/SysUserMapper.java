@@ -16,16 +16,17 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
 	@Select("SELECT * FROM sys_user WHERE username = #{username} AND deleted = 0")
 	SysUser selectByUsername(@Param("username") String username);
 
-	/** 查用户所有权限字符串(user→role→menu 的 perms,去重)。每次请求实时读,改权限即时生效。 */
+	/** 查用户所有权限字符串(user→启用角色→启用菜单的 perms,去重)。 */
 	@Select("""
 			SELECT DISTINCT m.perms
 			FROM sys_user_role ur
+			JOIN sys_role r ON ur.role_id = r.id
 			JOIN sys_role_menu rm ON ur.role_id = rm.role_id
 			JOIN sys_menu m ON rm.menu_id = m.id
 			WHERE ur.user_id = #{userId}
+			  AND r.status = 1 AND r.deleted = 0
 			  AND m.perms IS NOT NULL AND m.perms <> ''
-			  AND m.status = 1
-			  AND m.deleted = 0
+			  AND m.status = 1 AND m.deleted = 0
 			""")
 	List<String> selectPermsByUserId(@Param("userId") Long userId);
 

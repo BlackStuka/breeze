@@ -23,6 +23,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { useAuthStore } from '@/store/auth'
 import { UserFormDialog } from './UserFormDialog'
 
 export default function UserPage() {
@@ -34,6 +35,7 @@ export default function UserPage() {
 	const [editing, setEditing] = useState<UserResp | null>(null)
 	const [pendingDelete, setPendingDelete] = useState<UserResp | null>(null)
 	const queryClient = useQueryClient()
+	const { token, user, setAuth } = useAuthStore()
 
 	const { data, isLoading } = useQuery({
 		queryKey: ['users', page, size, debouncedSearch],
@@ -44,6 +46,13 @@ export default function UserPage() {
 	})
 
 	const refresh = () => queryClient.invalidateQueries({ queryKey: ['users'] })
+	const handleSaved = async (userId: string) => {
+		refresh()
+		if (userId !== user?.userId || !token || !user) return
+		const me = await http.get<{ userId: string; username: string; nickname: string | null; avatar: string | null; authorities: string[] }>('/auth/me')
+		setAuth(token, { userId: me.userId, username: me.username, nickname: me.nickname, avatar: me.avatar }, me.authorities)
+		queryClient.invalidateQueries({ queryKey: ['menus', 'tree'] })
+	}
 
 	const deleteMutation = useMutation({
 		mutationFn: (id: string) => http.delete(`/users/${id}`),
@@ -141,7 +150,7 @@ export default function UserPage() {
 					/>
 				</CardFooter>
 			</Card>
-			<UserFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} onSaved={refresh} />
+			<UserFormDialog open={dialogOpen} onOpenChange={setDialogOpen} editing={editing} onSaved={handleSaved} />
 			<AlertDialog open={!!pendingDelete} onOpenChange={(v) => !v && setPendingDelete(null)}>
 				<AlertDialogContent>
 					<AlertDialogHeader>

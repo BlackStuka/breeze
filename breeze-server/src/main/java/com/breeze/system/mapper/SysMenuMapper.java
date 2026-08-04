@@ -16,12 +16,12 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
 	@Select("""
 			SELECT DISTINCT m.*
 			FROM sys_user_role ur
+			JOIN sys_role r ON ur.role_id = r.id
 			JOIN sys_role_menu rm ON ur.role_id = rm.role_id
 			JOIN sys_menu m ON rm.menu_id = m.id
 			WHERE ur.user_id = #{userId}
-			  AND m.status = 1
-			  AND m.visible = 1
-			  AND m.deleted = 0
+			  AND r.status = 1 AND r.deleted = 0
+			  AND m.status = 1 AND m.visible = 1 AND m.deleted = 0
 			  AND m.menu_type IN ('M', 'C')
 			ORDER BY m.sort
 			""")
@@ -30,4 +30,7 @@ public interface SysMenuMapper extends BaseMapper<SysMenu> {
 	/** 逻辑删除:deleted 置为本行主键。 */
 	@Update("UPDATE sys_menu SET deleted = #{id} WHERE id = #{id} AND deleted = 0")
 	int logicDelete(@Param("id") Long id);
+
+	@Select("SELECT COUNT(*) FROM sys_menu WHERE parent_id = #{parentId} AND deleted = 0")
+	int countActiveChildren(@Param("parentId") Long parentId);
 }

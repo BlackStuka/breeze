@@ -5,10 +5,12 @@ import com.breeze.system.dto.MenuSaveRequest;
 import com.breeze.system.dto.MenuTreeNode;
 import com.breeze.system.entity.SysMenu;
 import com.breeze.system.mapper.SysMenuMapper;
+import com.breeze.system.mapper.SysRoleMenuMapper;
 import com.mybatisflex.core.query.QueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -20,6 +22,7 @@ import java.util.Map;
 public class MenuService {
 
 	private final SysMenuMapper menuMapper;
+	private final SysRoleMenuMapper roleMenuMapper;
 
 	/** 当前登录用户的动态菜单树(目录+菜单,按权限过滤)。 */
 	public List<MenuTreeNode> currentUserMenuTree(Long userId) {
@@ -46,16 +49,27 @@ public class MenuService {
 	}
 
 	public void update(Long id, MenuSaveRequest req) {
-		SysMenu m = menuMapper.selectOneById(id);
-		if (m == null) {
-			throw new BusinessException(404, "菜单不存在");
-		}
+		SysMenu m = requireMenu(id);
 		apply(req, m);
 		menuMapper.update(m);
 	}
 
+	@Transactional
 	public void delete(Long id) {
+		requireMenu(id);
+		if (menuMapper.countActiveChildren(id) > 0) {
+			throw new BusinessException(400, "请先删除子菜单");
+		}
 		menuMapper.logicDelete(id);
+		roleMenuMapper.deleteByMenuId(id);
+	}
+
+	private SysMenu requireMenu(Long id) {
+		SysMenu menu = menuMapper.selectOneById(id);
+		if (menu == null) {
+			throw new BusinessException(404, "菜单不存在");
+		}
+		return menu;
 	}
 
 	private void apply(MenuSaveRequest req, SysMenu m) {
