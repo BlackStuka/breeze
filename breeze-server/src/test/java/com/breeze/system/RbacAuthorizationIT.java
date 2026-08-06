@@ -77,6 +77,12 @@ class RbacAuthorizationIT {
 				.contentType("application/json")
 				.content("{\"menuIds\":[\"" + menuId + "\"]}"))
 				.andExpect(status().isOk());
+		String userId = jsonData(mockMvc.perform(post("/api/users")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"username\":\"response_test_user\",\"password\":\"TestPass!234\",\"nickname\":\"响应测试用户\",\"status\":1,\"roleIds\":[\"" + roleId + "\"]}"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString());
 		String userToken = login("response_test_user", "TestPass!234");
 		// The role assignment is verified by the existing RBAC flow; this assertion
 		// ensures an authenticated user without role-management permission gets 403 JSON.
@@ -86,6 +92,10 @@ class RbacAuthorizationIT {
 				.andExpect(jsonPath("$.code", is(403)))
 				.andExpect(jsonPath("$.message", is("没有权限")))
 				.andExpect(jsonPath("$.data").doesNotExist());
+		mockMvc.perform(delete("/api/users/{id}", userId).header("Authorization", bearer(adminToken)))
+				.andExpect(status().isOk());
+		mockMvc.perform(delete("/api/roles/{id}", roleId).header("Authorization", bearer(adminToken)))
+				.andExpect(status().isOk());
 	}
 
 	@Test
