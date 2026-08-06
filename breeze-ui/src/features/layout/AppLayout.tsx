@@ -7,7 +7,9 @@ import { useTheme } from 'next-themes'
 import { http } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import type { Menu } from '@/types'
+import { filterNavigableMenus, flattenMenuRoutes, resolveMenuPath } from '@/lib/menu'
 import { menuIcons, fallbackMenuIcon } from '@/lib/menuIcons'
+import { queryClient } from '@/lib/queryClient'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -44,18 +46,9 @@ import {
 	useSidebar,
 } from '@/components/ui/sidebar'
 
-/** 路由 → 面包屑段(首页固定在最前,这里只列首页之后的层级)。动态菜单的路由目前固定,轻量映射。 */
-const routeCrumbs: Record<string, string[]> = {
-	'/system/user': ['系统管理', '用户管理'],
-	'/system/role': ['系统管理', '角色管理'],
-	'/system/menu': ['系统管理', '菜单管理'],
-}
-
 /** 菜单 path 解析:首页 /dashboard 绝对;子菜单 user 相对父 → /system/user */
 function resolvePath(parent: string, path: string | null): string {
-	if (!path) return '#'
-	if (path.startsWith('/')) return path
-	return `${parent}/${path}`.replace(/\/+/g, '/')
+	return resolveMenuPath(parent, path) ?? '#'
 }
 
 type Location = ReturnType<typeof useLocation>
@@ -81,6 +74,7 @@ function MenuNode({
 	onNavigate?: () => void
 }) {
 	const path = resolvePath(parentPath, menu.path)
+	if (menu.menuType === 'F' || menu.status !== 1 || menu.visible !== 1 || path === '#') return null
 	const Icon = menuIcons[menu.icon ?? ''] ?? fallbackMenuIcon
 	const active = location.pathname === path
 
@@ -157,10 +151,11 @@ function SidebarNav({ menus, location }: { menus: Menu[]; location: Location }) 
 }
 
 export default function AppLayout() {
-	const { data: menus } = useQuery({
+	const { data: rawMenus } = useQuery({
 		queryKey: ['menus', 'tree'],
 		queryFn: () => http.get<Menu[]>('/menus/tree'),
 	})
+	const menus = filterNavigableMenus(rawMenus ?? [])
 	const { user, clear } = useAuthStore()
 	const navigate = useNavigate()
 	const { theme, setTheme } = useTheme()
@@ -173,11 +168,14 @@ export default function AppLayout() {
 			/* 无状态 JWT,忽略 */
 		}
 		clear()
+		queryClient.removeQueries({ queryKey: ['menus'] })
 		navigate('/login')
 	}
 
 	const isHome = location.pathname === '/dashboard'
-	const subCrumbs = routeCrumbs[location.pathname] ?? []
+	const subCrumbs = isHome
+			? []
+			: flattenMenuRoutes(rawMenus ?? []).find((route) => route.path === location.pathname)?.ancestors.map((menu) => menu.menuName) ?? []
 
 	return (
 		<SidebarProvider>
@@ -200,7 +198,7 @@ export default function AppLayout() {
 				<SidebarContent>
 					<SidebarGroup>
 						<SidebarGroupContent>
-							<SidebarNav menus={menus ?? []} location={location} />
+							<SidebarNav menus={menus} location={location} />
 						</SidebarGroupContent>
 					</SidebarGroup>
 				</SidebarContent>

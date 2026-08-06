@@ -84,9 +84,9 @@ export default function LoginPage() {
 						</Button>
 
 						<div className="flex items-center gap-3 text-sm text-muted-foreground">
-							<Separator />
-							<span>或</span>
-							<Separator />
+							<Separator className="min-w-0 flex-1" />
+							<span className="shrink-0">或</span>
+							<Separator className="min-w-0 flex-1" />
 						</div>
 
 						<div className="grid gap-4 sm:grid-cols-2">

@@ -40,11 +40,13 @@ export interface RoleMenuIdsResp {
 	menuIds: string[]
 }
 
+export type MenuType = 'M' | 'C' | 'F'
+
 export interface Menu {
 	id: string
 	parentId: string | null
 	menuName: string
-	menuType: string // M目录 C菜单 F按钮
+	menuType: MenuType
 	path: string | null
 	component: string | null
 	perms: string | null

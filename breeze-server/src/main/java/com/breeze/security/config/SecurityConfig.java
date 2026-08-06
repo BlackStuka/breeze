@@ -1,8 +1,9 @@
 package com.breeze.security.config;
 
+import com.breeze.security.handler.RestAccessDeniedHandler;
+import com.breeze.security.handler.RestAuthenticationEntryPoint;
 import com.breeze.security.jwt.JwtAuthFilter;
 import jakarta.servlet.DispatcherType;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -23,6 +24,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
 	private final JwtAuthFilter jwtAuthFilter;
+	private final RestAuthenticationEntryPoint authenticationEntryPoint;
+	private final RestAccessDeniedHandler accessDeniedHandler;
 
 	@Bean
 	public PasswordEncoder passwordEncoder() {
@@ -39,11 +42,9 @@ public class SecurityConfig {
 						.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
 						.anyRequest().authenticated())
 				.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-				.exceptionHandling(eh -> eh.authenticationEntryPoint((req, res, e) -> {
-					res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-					res.setContentType("application/json;charset=UTF-8");
-					res.getWriter().write("{\"code\":401,\"message\":\"未登录或 token 无效\",\"data\":null}");
-				}))
+				.exceptionHandling(eh -> eh
+						.authenticationEntryPoint(authenticationEntryPoint)
+						.accessDeniedHandler(accessDeniedHandler))
 				.build();
 	}
 }

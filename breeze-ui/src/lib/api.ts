@@ -1,11 +1,20 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/auth'
+import { queryClient } from '@/lib/queryClient'
 
 const api = axios.create({
 	baseURL: '/api',
 	timeout: 15000,
 })
+
+function handleUnauthorized() {
+	useAuthStore.getState().clear()
+	queryClient.removeQueries({ queryKey: ['menus'] })
+	if (!window.location.pathname.startsWith('/login')) {
+		window.location.href = '/login'
+	}
+}
 
 // 请求拦截器:注入 JWT
 api.interceptors.request.use((config) => {
@@ -23,17 +32,20 @@ api.interceptors.response.use(
 		if (result?.code === 0) {
 			return result.data
 		}
-		toast.error(result?.message ?? '请求失败')
+		if (result?.code === 401) {
+			handleUnauthorized()
+		} else {
+			toast.error(result?.message ?? '请求失败')
+		}
 		return Promise.reject(new Error(result?.message ?? '请求失败'))
 	},
 	(error) => {
 		const status = error.response?.status
 		const message = error.response?.data?.message ?? error.message ?? '请求失败'
 		if (status === 401) {
-			useAuthStore.getState().clear()
-			if (!window.location.pathname.startsWith('/login')) {
-				window.location.href = '/login'
-			}
+			handleUnauthorized()
+		} else if (status === 403) {
+			toast.error(message || '没有权限')
 		} else {
 			toast.error(message)
 		}

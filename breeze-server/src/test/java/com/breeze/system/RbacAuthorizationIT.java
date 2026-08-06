@@ -15,10 +15,12 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -45,6 +47,45 @@ class RbacAuthorizationIT {
 		registry.add("spring.datasource.username", MYSQL::getUsername);
 		registry.add("spring.datasource.password", MYSQL::getPassword);
 		registry.add("spring.datasource.driver-class-name", MYSQL::getDriverClassName);
+	}
+
+	@Test
+	void authenticationAndAuthorizationErrorsUseUnifiedJson() throws Exception {
+		mockMvc.perform(get("/api/auth/me"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(content().contentTypeCompatibleWith("application/json"))
+				.andExpect(jsonPath("$.code", is(401)))
+				.andExpect(jsonPath("$.message", is("未登录或 token 无效")))
+				.andExpect(jsonPath("$.data").doesNotExist());
+
+		mockMvc.perform(get("/api/auth/me").header("Authorization", bearer("not-a-valid-token")))
+				.andExpect(status().isUnauthorized())
+				.andExpect(content().contentTypeCompatibleWith("application/json"))
+				.andExpect(jsonPath("$.code", is(401)))
+				.andExpect(jsonPath("$.data").doesNotExist());
+
+		String adminToken = login("admin", "admin123");
+		String menuId = findMenuId(adminToken, "system:user:list");
+		String roleId = jsonData(mockMvc.perform(post("/api/roles")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"roleName\":\"格式测试角色\",\"roleCode\":\"response_test_role\",\"sort\":99,\"status\":1}"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString());
+		mockMvc.perform(put("/api/roles/{id}/menus", roleId)
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"menuIds\":[\"" + menuId + "\"]}"))
+				.andExpect(status().isOk());
+		String userToken = login("response_test_user", "TestPass!234");
+		// The role assignment is verified by the existing RBAC flow; this assertion
+		// ensures an authenticated user without role-management permission gets 403 JSON.
+		mockMvc.perform(get("/api/roles").header("Authorization", bearer(userToken)))
+				.andExpect(status().isForbidden())
+				.andExpect(content().contentTypeCompatibleWith("application/json"))
+				.andExpect(jsonPath("$.code", is(403)))
+				.andExpect(jsonPath("$.message", is("没有权限")))
+				.andExpect(jsonPath("$.data").doesNotExist());
 	}
 
 	@Test
