@@ -1,15 +1,17 @@
 import { Fragment } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { ChevronDown, LogOut, Moon, Sun, Wind } from 'lucide-react'
 import { Collapsible as CollapsiblePrimitive } from 'radix-ui'
 import { useTheme } from 'next-themes'
 import { http } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
-import type { Menu } from '@/types'
-import { filterNavigableMenus, flattenMenuRoutes, resolveMenuPath } from '@/lib/menu'
+import { useMenuTree } from '@/hooks/useMenuTree'
+import { removeMenuQueries } from '@/lib/menuQueries'
 import { menuIcons, fallbackMenuIcon } from '@/lib/menuIcons'
 import { queryClient } from '@/lib/queryClient'
+import { MenuTreeEmpty, MenuTreeError, MenuTreeLoading } from '@/components/MenuTreeState'
+import type { Menu } from '@/types'
+import { resolveMenuPath } from '@/lib/menu'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import {
@@ -46,27 +48,13 @@ import {
 	useSidebar,
 } from '@/components/ui/sidebar'
 
-/** 菜单 path 解析:首页 /dashboard 绝对;子菜单 user 相对父 → /system/user */
 function resolvePath(parent: string, path: string | null): string {
 	return resolveMenuPath(parent, path) ?? '#'
 }
 
 type Location = ReturnType<typeof useLocation>
 
-/**
- * 递归渲染菜单节点。
- * - 目录(M 且有 children):Collapsible 展开,子级进 SidebarMenuSub。
- * - 叶子(C):Link,active 用 isActive。
- * - F(按钮)类不在导航树渲染;若后端 tree 含 F,会被当叶子兜底(与旧版一致)。
- * nested 控制用 SidebarMenuItem/MenuButton 还是 Sub 系列(li/样式不同)。
- */
-function MenuNode({
-	menu,
-	parentPath = '',
-	nested = false,
-	location,
-	onNavigate,
-}: {
+function MenuNode({ menu, parentPath = '', nested = false, location, onNavigate }: {
 	menu: Menu
 	parentPath?: string
 	nested?: boolean
@@ -85,188 +73,55 @@ function MenuNode({
 				<DirItem>
 					<CollapsiblePrimitive.Trigger asChild>
 						<SidebarMenuButton tooltip={menu.menuName}>
-							<Icon />
-							<span>{menu.menuName}</span>
+							<Icon /><span>{menu.menuName}</span>
 							<ChevronDown className="ml-auto transition-transform group-data-[state=open]/collapsible:rotate-180" />
 						</SidebarMenuButton>
 					</CollapsiblePrimitive.Trigger>
-					<CollapsiblePrimitive.Content>
-						<SidebarMenuSub>
-							{menu.children.map((c) => (
-								<MenuNode
-									key={c.id}
-									menu={c}
-									parentPath={path}
-									nested
-									location={location}
-									onNavigate={onNavigate}
-								/>
-							))}
-						</SidebarMenuSub>
-					</CollapsiblePrimitive.Content>
+					<CollapsiblePrimitive.Content><SidebarMenuSub>
+						{menu.children.map((child) => <MenuNode key={child.id} menu={child} parentPath={path} nested location={location} onNavigate={onNavigate} />)}
+					</SidebarMenuSub></CollapsiblePrimitive.Content>
 				</DirItem>
 			</CollapsiblePrimitive.Root>
 		)
 	}
 
-	if (nested) {
-		return (
-			<SidebarMenuSubItem>
-				<SidebarMenuSubButton asChild isActive={active}>
-					<Link to={path} onClick={onNavigate}>
-						<Icon />
-						<span>{menu.menuName}</span>
-					</Link>
-				</SidebarMenuSubButton>
-			</SidebarMenuSubItem>
-		)
-	}
-
-	return (
-		<SidebarMenuItem>
-			<SidebarMenuButton asChild isActive={active} tooltip={menu.menuName}>
-				<Link to={path} onClick={onNavigate}>
-					<Icon />
-					<span>{menu.menuName}</span>
-				</Link>
-			</SidebarMenuButton>
-		</SidebarMenuItem>
-	)
+	if (nested) return <SidebarMenuSubItem><SidebarMenuSubButton asChild isActive={active}><Link to={path} onClick={onNavigate}><Icon /><span>{menu.menuName}</span></Link></SidebarMenuSubButton></SidebarMenuSubItem>
+	return <SidebarMenuItem><SidebarMenuButton asChild isActive={active} tooltip={menu.menuName}><Link to={path} onClick={onNavigate}><Icon /><span>{menu.menuName}</span></Link></SidebarMenuButton></SidebarMenuItem>
 }
 
 function SidebarNav({ menus, location }: { menus: Menu[]; location: Location }) {
 	const { setOpenMobile } = useSidebar()
-	return (
-		<SidebarMenu>
-			{menus.map((m) => (
-				<MenuNode
-					key={m.id}
-					menu={m}
-					location={location}
-					onNavigate={() => setOpenMobile(false)}
-				/>
-			))}
-		</SidebarMenu>
-	)
+	return <SidebarMenu>{menus.map((menu) => <MenuNode key={menu.id} menu={menu} location={location} onNavigate={() => setOpenMobile(false)} />)}</SidebarMenu>
 }
 
 export default function AppLayout() {
-	const { data: rawMenus } = useQuery({
-		queryKey: ['menus', 'tree'],
-		queryFn: () => http.get<Menu[]>('/menus/tree'),
-	})
-	const menus = filterNavigableMenus(rawMenus ?? [])
+	const { menus, isLoading, isError, refetch, routes } = useMenuTree()
 	const { user, clear } = useAuthStore()
 	const navigate = useNavigate()
 	const { theme, setTheme } = useTheme()
 	const location = useLocation()
 
 	const logout = async () => {
-		try {
-			await http.post('/auth/logout')
-		} catch {
-			/* 无状态 JWT,忽略 */
-		}
+		try { await http.post('/auth/logout') } catch { /* 无状态 JWT,忽略 */ }
 		clear()
-		queryClient.removeQueries({ queryKey: ['menus'] })
+		removeMenuQueries(queryClient)
 		navigate('/login')
 	}
 
 	const isHome = location.pathname === '/dashboard'
-	const subCrumbs = isHome
-			? []
-			: flattenMenuRoutes(rawMenus ?? []).find((route) => route.path === location.pathname)?.ancestors.map((menu) => menu.menuName) ?? []
+	const subCrumbs = isHome ? [] : routes.find((route) => route.path === location.pathname)?.ancestors.map((menu) => menu.menuName) ?? []
 
 	return (
 		<SidebarProvider>
 			<Sidebar collapsible="icon">
-				<SidebarHeader>
-					<SidebarMenu>
-						<SidebarMenuItem>
-							<SidebarMenuButton size="lg" tooltip="Breeze">
-								<div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-									<Wind className="size-4" />
-								</div>
-								<div className="grid flex-1 text-left text-sm leading-tight">
-									<span className="truncate font-semibold">Breeze</span>
-									<span className="truncate text-xs text-muted-foreground">后台管理</span>
-								</div>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					</SidebarMenu>
-				</SidebarHeader>
-				<SidebarContent>
-					<SidebarGroup>
-						<SidebarGroupContent>
-							<SidebarNav menus={menus} location={location} />
-						</SidebarGroupContent>
-					</SidebarGroup>
-				</SidebarContent>
+				<SidebarHeader><SidebarMenu><SidebarMenuItem><SidebarMenuButton size="lg" tooltip="Breeze"><div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Wind className="size-4" /></div><div className="grid flex-1 text-left text-sm leading-tight"><span className="truncate font-semibold">Breeze</span><span className="truncate text-xs text-muted-foreground">后台管理</span></div></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
+				<SidebarContent><SidebarGroup><SidebarGroupContent>
+					{isLoading ? <MenuTreeLoading /> : isError ? <MenuTreeError onRetry={() => void refetch()} /> : menus.length === 0 ? <MenuTreeEmpty /> : <SidebarNav menus={menus} location={location} />}
+				</SidebarGroupContent></SidebarGroup></SidebarContent>
 			</Sidebar>
-
 			<SidebarInset>
-				<header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4">
-					<SidebarTrigger />
-					<Breadcrumb>
-						<BreadcrumbList>
-							<BreadcrumbItem>
-								{isHome ? (
-									<BreadcrumbPage>首页</BreadcrumbPage>
-								) : (
-									<BreadcrumbLink asChild>
-										<Link to="/dashboard">首页</Link>
-									</BreadcrumbLink>
-								)}
-							</BreadcrumbItem>
-							{subCrumbs.map((name, i) => (
-								<Fragment key={name}>
-									<BreadcrumbSeparator />
-									<BreadcrumbItem>
-										{i === subCrumbs.length - 1 ? (
-											<BreadcrumbPage>{name}</BreadcrumbPage>
-										) : (
-											<span>{name}</span>
-										)}
-									</BreadcrumbItem>
-								</Fragment>
-							))}
-						</BreadcrumbList>
-					</Breadcrumb>
-					<div className="ml-auto flex items-center gap-2">
-						<Button
-							variant="ghost"
-							size="icon"
-							aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
-							onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-						>
-							<Sun className="hidden dark:block" />
-							<Moon className="dark:hidden" />
-						</Button>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button variant="ghost" className="gap-2">
-									<Avatar className="size-7">
-										<AvatarFallback>
-											{user?.username?.[0]?.toUpperCase() ?? 'U'}
-										</AvatarFallback>
-									</Avatar>
-									<span className="text-sm">{user?.nickname || user?.username}</span>
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuLabel>{user?.username}</DropdownMenuLabel>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onClick={logout}>
-									<LogOut className="size-4" />
-									退出登录
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
-				</header>
-				<div className="flex-1 overflow-auto p-6">
-					<Outlet />
-				</div>
+				<header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background px-4"><SidebarTrigger /><Breadcrumb><BreadcrumbList><BreadcrumbItem>{isHome ? <BreadcrumbPage>首页</BreadcrumbPage> : <BreadcrumbLink asChild><Link to="/dashboard">首页</Link></BreadcrumbLink>}</BreadcrumbItem>{subCrumbs.map((name, index) => <Fragment key={`${name}-${index}`}><BreadcrumbSeparator /><BreadcrumbItem>{index === subCrumbs.length - 1 ? <BreadcrumbPage>{name}</BreadcrumbPage> : <span>{name}</span>}</BreadcrumbItem></Fragment>)}</BreadcrumbList></Breadcrumb><div className="ml-auto flex items-center gap-2"><Button variant="ghost" size="icon" aria-label={theme === 'dark' ? '切换到浅色模式' : '切换到深色模式'} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}><Sun className="hidden dark:block" /><Moon className="dark:hidden" /></Button><DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" className="gap-2"><Avatar className="size-7"><AvatarFallback>{user?.username?.[0]?.toUpperCase() ?? 'U'}</AvatarFallback></Avatar><span className="text-sm">{user?.nickname || user?.username}</span></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuLabel>{user?.username}</DropdownMenuLabel><DropdownMenuSeparator /><DropdownMenuItem onClick={logout}><LogOut className="size-4" />退出登录</DropdownMenuItem></DropdownMenuContent></DropdownMenu></div></header>
+				<div className="flex-1 overflow-auto p-6"><Outlet /></div>
 			</SidebarInset>
 		</SidebarProvider>
 	)

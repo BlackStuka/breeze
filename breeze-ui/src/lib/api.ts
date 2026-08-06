@@ -2,6 +2,7 @@ import axios, { type AxiosRequestConfig } from 'axios'
 import { toast } from 'sonner'
 import { useAuthStore } from '@/store/auth'
 import { queryClient } from '@/lib/queryClient'
+import { removeMenuQueries } from '@/lib/menuQueries'
 
 const api = axios.create({
 	baseURL: '/api',
@@ -10,7 +11,7 @@ const api = axios.create({
 
 function handleUnauthorized() {
 	useAuthStore.getState().clear()
-	queryClient.removeQueries({ queryKey: ['menus'] })
+	removeMenuQueries(queryClient)
 	if (!window.location.pathname.startsWith('/login')) {
 		window.location.href = '/login'
 	}
