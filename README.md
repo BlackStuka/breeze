@@ -52,14 +52,16 @@ pnpm dev
 
 ## RBAC 验证
 
-后端集成测试使用 Testcontainers 启动独立的 MySQL 8.4 容器，不会修改本地 `breeze` 数据库。运行：
+后端集成测试使用 Testcontainers 启动独立的 MySQL 8.4 容器，不会修改本地 `breeze` 数据库。单元测试由 Surefire 执行，`*IT` 集成测试由 Failsafe 在 `verify` 阶段执行，运行完整门禁：
 
 ```bash
 cd breeze-server
-mvn test
+mvn verify
 ```
 
 测试覆盖完整授权链路：管理员登录、角色菜单查询与全量分配、用户角色绑定、低权限用户的 200/403、旧 JWT 的权限即时变化，以及用户和角色删除后的关联清理。运行需要本机 Docker Desktop 或其他兼容 Docker API 的容器运行时。
+
+项目还包含一个最小 `business/product` 业务示例，用于演示从迁移、权限菜单、后端 CRUD 到前端页面的扩展路径。产品接口为 `GET/POST /api/products`、`PUT/DELETE /api/products/{id}`，权限码为 `business:product:list/add/edit/remove`。
 
 也可以通过浏览器手工验证：管理员登录后创建测试角色，给它分配实际启用的用户列表菜单，再创建用户并在用户表单中选择该角色。使用新用户登录，确认 `/api/auth/me` 只有授权权限，用户列表可访问而角色管理返回 403；随后管理员清空角色菜单，复用普通用户的旧会话确认权限立即失效。测试角色和用户应在验证后删除。
 

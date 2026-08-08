@@ -2,6 +2,7 @@ package com.breeze.common.exception;
 
 import com.breeze.common.response.Result;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -22,6 +23,7 @@ public class GlobalExceptionHandler {
 			case 401 -> HttpStatus.UNAUTHORIZED;
 			case 403 -> HttpStatus.FORBIDDEN;
 			case 404 -> HttpStatus.NOT_FOUND;
+			case 409 -> HttpStatus.CONFLICT;
 			default -> HttpStatus.BAD_REQUEST;
 		};
 		return ResponseEntity.status(status).body(Result.error(e.getCode(), e.getMessage()));
@@ -40,6 +42,12 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(AccessDeniedException.class)
 	public ResponseEntity<Result<Void>> handleAccessDenied(AccessDeniedException e) {
 		return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Result.error(403, "没有权限"));
+	}
+
+	@ExceptionHandler(DuplicateKeyException.class)
+	public ResponseEntity<Result<Void>> handleDuplicateKey(DuplicateKeyException e) {
+		log.warn("duplicate key", e);
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(Result.error(409, "数据已存在"));
 	}
 
 	@ExceptionHandler(Exception.class)

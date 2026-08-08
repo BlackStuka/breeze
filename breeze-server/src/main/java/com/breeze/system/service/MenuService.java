@@ -13,9 +13,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +45,7 @@ public class MenuService {
 
 	public Long create(MenuSaveRequest req) {
 		SysMenu m = new SysMenu();
+		validateParent(req.parentId(), null);
 		apply(req, m);
 		menuMapper.insert(m);
 		return m.getId();
@@ -50,6 +53,7 @@ public class MenuService {
 
 	public void update(Long id, MenuSaveRequest req) {
 		SysMenu m = requireMenu(id);
+		validateParent(req.parentId(), id);
 		apply(req, m);
 		menuMapper.update(m);
 	}
@@ -83,6 +87,30 @@ public class MenuService {
 		m.setSort(req.sort() == null ? 0 : req.sort());
 		m.setVisible(req.visible() == null ? 1 : req.visible());
 		m.setStatus(req.status() == null ? 1 : req.status());
+	}
+
+	private void validateParent(Long requestedParentId, Long currentId) {
+		long parentId = requestedParentId == null ? 0 : requestedParentId;
+		if (parentId == 0) {
+			return;
+		}
+		if (currentId != null && parentId == currentId) {
+			throw new BusinessException(400, "菜单不能指向自身");
+		}
+		SysMenu parent = requireMenu(parentId);
+		if ("F".equals(parent.getMenuType())) {
+			throw new BusinessException(400, "按钮不能作为父菜单");
+		}
+
+		Set<Long> visited = new HashSet<>();
+		Long cursor = parent.getId();
+		while (cursor != null && cursor != 0 && visited.add(cursor)) {
+			if (currentId != null && cursor.equals(currentId)) {
+				throw new BusinessException(400, "菜单层级不能形成循环");
+			}
+			SysMenu ancestor = menuMapper.selectOneById(cursor);
+			cursor = ancestor == null ? 0 : ancestor.getParentId();
+		}
 	}
 
 	private List<MenuTreeNode> buildTree(List<SysMenu> menus) {

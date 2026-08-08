@@ -40,6 +40,16 @@ export interface RoleMenuIdsResp {
 	menuIds: string[]
 }
 
+export interface ProductResp {
+	id: string
+	name: string
+	code: string
+	price: number
+	status: number
+	remark: string | null
+	createTime: string
+}
+
 export type MenuType = 'M' | 'C' | 'F'
 
 export interface Menu {

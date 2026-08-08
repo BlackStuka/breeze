@@ -11,7 +11,12 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { RhfSelect } from '@/components/RhfSelect'
 
-const schema = z.object({ roleName: z.string().min(1, '请输入角色名'), roleCode: z.string().min(1, '请输入编码'), sort: z.number(), status: z.number() })
+const schema = z.object({
+	roleName: z.string().min(1, '请输入角色名').max(64, '角色名不能超过64个字符'),
+	roleCode: z.string().regex(/^[A-Za-z][A-Za-z0-9:_-]*$/, '编码必须以字母开头，只能包含字母、数字和 :_-'),
+	sort: z.number().int('排序必须是整数').min(0, '排序不能为负数'),
+	status: z.number().int().min(0).max(1),
+})
 type FormValues = z.infer<typeof schema>
 interface Props { open: boolean; onOpenChange: (v: boolean) => void; editing: RoleResp | null; onSaved: () => void }
 

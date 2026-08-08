@@ -28,4 +28,10 @@ public final class Permissions {
 	public static final String MENU_ADD = "system:menu:add";
 	public static final String MENU_EDIT = "system:menu:edit";
 	public static final String MENU_REMOVE = "system:menu:remove";
+
+	// 产品示例
+	public static final String PRODUCT_LIST = "business:product:list";
+	public static final String PRODUCT_ADD = "business:product:add";
+	public static final String PRODUCT_EDIT = "business:product:edit";
+	public static final String PRODUCT_REMOVE = "business:product:remove";
 }

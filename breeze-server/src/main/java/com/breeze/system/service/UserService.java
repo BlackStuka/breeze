@@ -2,6 +2,7 @@ package com.breeze.system.service;
 
 import com.breeze.common.exception.BusinessException;
 import com.breeze.common.response.PageResult;
+import com.breeze.security.util.CurrentUser;
 import com.breeze.system.dto.PageQuery;
 import com.breeze.system.dto.UserResp;
 import com.breeze.system.dto.UserSaveRequest;
@@ -56,11 +57,10 @@ public class UserService {
 
 	@Transactional
 	public Long create(UserSaveRequest req) {
-		if (req.password() == null || req.password().isBlank()) {
-			throw new BusinessException(400, "密码不能为空");
-		}
+		validateUsername(req.username());
+		validatePassword(req.password());
 		if (userMapper.selectByUsername(req.username()) != null) {
-			throw new BusinessException(400, "用户名已存在");
+			throw new BusinessException(409, "用户名已存在");
 		}
 		List<Long> roleIds = validateRoleIds(req.roleIds());
 		SysUser u = new SysUser();
@@ -69,7 +69,7 @@ public class UserService {
 		u.setNickname(req.nickname());
 		u.setEmail(req.email());
 		u.setPhone(req.phone());
-		u.setStatus(req.status() == null ? 1 : req.status());
+		u.setStatus(validateStatus(req.status(), 1));
 		userMapper.insert(u);
 		replaceRoles(u.getId(), roleIds);
 		return u.getId();
@@ -85,7 +85,7 @@ public class UserService {
 		u.setNickname(req.nickname());
 		u.setEmail(req.email());
 		u.setPhone(req.phone());
-		u.setStatus(req.status());
+		u.setStatus(validateStatus(req.status(), u.getStatus()));
 		userMapper.update(u);
 		replaceRoles(id, roleIds);
 	}
@@ -95,14 +95,15 @@ public class UserService {
 		if (userMapper.selectOneById(id) == null) {
 			throw new BusinessException(404, "用户不存在");
 		}
+		if (id.equals(CurrentUser.getUserId())) {
+			throw new BusinessException(400, "不能删除当前登录用户");
+		}
 		userMapper.logicDelete(id);
 		userRoleMapper.deleteByUserId(id);
 	}
 
 	public void resetPassword(Long id, String password) {
-		if (password == null || password.isBlank()) {
-			throw new BusinessException(400, "密码不能为空");
-		}
+		validatePassword(password);
 		if (userMapper.selectOneById(id) == null) {
 			throw new BusinessException(404, "用户不存在");
 		}
@@ -110,6 +111,29 @@ public class UserService {
 		u.setId(id);
 		u.setPassword(passwordEncoder.encode(password));
 		userMapper.update(u);
+	}
+
+	private void validateUsername(String username) {
+		if (username == null || username.isBlank()) {
+			throw new BusinessException(400, "用户名不能为空");
+		}
+	}
+
+	private void validatePassword(String password) {
+		if (password == null || password.isBlank()) {
+			throw new BusinessException(400, "密码不能为空");
+		}
+		if (password.length() < 8 || password.length() > 72) {
+			throw new BusinessException(400, "密码长度必须为 8-72 位");
+		}
+	}
+
+	private Integer validateStatus(Integer status, Integer defaultValue) {
+		Integer value = status == null ? defaultValue : status;
+		if (value == null || (value != 0 && value != 1)) {
+			throw new BusinessException(400, "用户状态无效");
+		}
+		return value;
 	}
 
 	private List<Long> validateRoleIds(List<Long> requested) {

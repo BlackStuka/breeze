@@ -12,7 +12,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import com.breeze.system.mapper.SysRoleMapper;
+import com.breeze.system.mapper.SysUserMapper;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -40,6 +43,12 @@ class RbacAuthorizationIT {
 
 	@Autowired
 	ObjectMapper objectMapper;
+
+	@Autowired
+	SysRoleMapper sysRoleMapper;
+
+	@Autowired
+	SysUserMapper sysUserMapper;
 
 	@DynamicPropertySource
 	static void datasourceProperties(DynamicPropertyRegistry registry) {
@@ -72,6 +81,17 @@ class RbacAuthorizationIT {
 				.content("{\"roleName\":\"格式测试角色\",\"roleCode\":\"response_test_role\",\"sort\":99,\"status\":1}"))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString());
+		Long adminUserId = sysUserMapper.selectByUsername("admin").getId();
+		assertEquals(adminUserId, sysRoleMapper.selectOneById(Long.valueOf(roleId)).getCreateBy());
+		assertEquals(adminUserId, sysRoleMapper.selectOneById(Long.valueOf(roleId)).getUpdateBy());
+
+		mockMvc.perform(put("/api/roles/{id}", roleId)
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"roleName\":\"格式测试角色更新\",\"roleCode\":\"response_test_role\",\"sort\":99,\"status\":1}"))
+				.andExpect(status().isOk());
+		assertEquals(adminUserId, sysRoleMapper.selectOneById(Long.valueOf(roleId)).getUpdateBy());
+
 		mockMvc.perform(put("/api/roles/{id}/menus", roleId)
 				.header("Authorization", bearer(adminToken))
 				.contentType("application/json")
@@ -83,6 +103,8 @@ class RbacAuthorizationIT {
 				.content("{\"username\":\"response_test_user\",\"password\":\"TestPass!234\",\"nickname\":\"响应测试用户\",\"status\":1,\"roleIds\":[\"" + roleId + "\"]}"))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString());
+		assertEquals(adminUserId, sysUserMapper.selectOneById(Long.valueOf(userId)).getCreateBy());
+		assertEquals(adminUserId, sysUserMapper.selectOneById(Long.valueOf(userId)).getUpdateBy());
 		String userToken = login("response_test_user", "TestPass!234");
 		// The role assignment is verified by the existing RBAC flow; this assertion
 		// ensures an authenticated user without role-management permission gets 403 JSON.
@@ -148,6 +170,8 @@ class RbacAuthorizationIT {
 				.andExpect(status().isOk());
 		mockMvc.perform(get("/api/roles").header("Authorization", bearer(userToken)))
 				.andExpect(status().isForbidden());
+		mockMvc.perform(get("/api/products").header("Authorization", bearer(userToken)))
+				.andExpect(status().isForbidden());
 
 		mockMvc.perform(put("/api/roles/{id}/menus", roleId)
 				.header("Authorization", bearer(adminToken))
@@ -169,6 +193,92 @@ class RbacAuthorizationIT {
 				.header("Authorization", bearer(adminToken)))
 				.andExpect(status().isOk());
 		mockMvc.perform(delete("/api/roles/{id}", roleId)
+				.header("Authorization", bearer(adminToken)))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void rejectsInvalidHierarchyDuplicateIdentityAndSelfDeletion() throws Exception {
+		String adminToken = login("admin", "admin123");
+		String adminId = sysUserMapper.selectByUsername("admin").getId().toString();
+
+		mockMvc.perform(post("/api/roles")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"roleName\":\"重复编码角色\",\"roleCode\":\"admin\",\"sort\":1,\"status\":1}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code", is(409)));
+
+		mockMvc.perform(post("/api/users")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"username\":\"admin\",\"password\":\"TestPass!234\",\"status\":1}"))
+				.andExpect(status().isConflict())
+				.andExpect(jsonPath("$.code", is(409)));
+
+		mockMvc.perform(post("/api/users")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"username\":\"short_password_user\",\"password\":\"short\",\"status\":1}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code", is(400)));
+
+		mockMvc.perform(post("/api/menus")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"menuName\":\"非法类型\",\"menuType\":\"X\",\"status\":1,\"visible\":1}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.code", is(400)));
+
+		String buttonId = findMenuId(adminToken, "system:user:add");
+		mockMvc.perform(post("/api/menus")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"parentId\":\"" + buttonId + "\",\"menuName\":\"按钮下级\",\"menuType\":\"C\",\"path\":\"invalid-child\",\"status\":1,\"visible\":1}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", is("按钮不能作为父菜单")));
+
+		String menuId = findMenuId(adminToken, "system:user:list");
+		mockMvc.perform(put("/api/menus/{id}", menuId)
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"parentId\":\"" + menuId + "\",\"menuName\":\"用户管理\",\"menuType\":\"C\",\"path\":\"user\",\"status\":1,\"visible\":1}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", is("菜单不能指向自身")));
+
+		mockMvc.perform(delete("/api/users/{id}", adminId)
+				.header("Authorization", bearer(adminToken)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.message", is("不能删除当前登录用户")));
+	}
+
+	@Test
+	void productExampleSupportsCrudWithBusinessPermission() throws Exception {
+		String adminToken = login("admin", "admin123");
+		mockMvc.perform(get("/api/products").header("Authorization", bearer(adminToken)))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.records").isArray());
+
+		String productId = jsonData(mockMvc.perform(post("/api/products")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"name\":\"测试产品\",\"code\":\"rbac-product\",\"price\":12.50,\"status\":1,\"remark\":\"集成测试\"}"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString());
+
+		mockMvc.perform(put("/api/products/{id}", productId)
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"name\":\"测试产品更新\",\"code\":\"rbac-product\",\"price\":15.00,\"status\":1}"))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/products")
+				.header("Authorization", bearer(adminToken))
+				.contentType("application/json")
+				.content("{\"name\":\"重复产品\",\"code\":\"rbac-product\",\"price\":1.00,\"status\":1}"))
+				.andExpect(status().isConflict());
+
+		mockMvc.perform(delete("/api/products/{id}", productId)
 				.header("Authorization", bearer(adminToken)))
 				.andExpect(status().isOk());
 	}

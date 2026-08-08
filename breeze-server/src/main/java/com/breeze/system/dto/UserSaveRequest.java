@@ -7,7 +7,7 @@ import java.util.List;
 /** 用户新增/修改。password 仅新增时使用;改密走专门的 reset 接口。 */
 public record UserSaveRequest(
 		@Size(max = 64) String username,
-		String password,
+		@Size(min = 8, max = 72, message = "密码长度必须为 8-72 位") String password,
 		@Size(max = 64) String nickname,
 		@Size(max = 128) String email,
 		@Size(max = 32) String phone,

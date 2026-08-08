@@ -190,6 +190,20 @@
 					</execution>
 				</executions>
 			</plugin>
+
+			<!-- *IT 集成测试由 Failsafe 在 verify 阶段执行 -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
 

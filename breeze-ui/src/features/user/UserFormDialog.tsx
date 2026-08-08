@@ -15,11 +15,11 @@ import { RhfSelect } from '@/components/RhfSelect'
 
 const schema = z.object({
 	username: z.string().min(1, '请输入用户名'),
-	password: z.string(),
+	password: z.string().max(72, '密码不能超过72位'),
 	nickname: z.string().optional(),
 	email: z.string().optional(),
 	phone: z.string().optional(),
-	status: z.number(),
+	status: z.number().int().min(0).max(1),
 	roleIds: z.array(z.string()),
 })
 type FormValues = z.infer<typeof schema>
@@ -38,7 +38,7 @@ export function UserFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 		queryFn: () => http.get<RoleResp[]>('/roles/options'),
 		enabled: open,
 	})
-	const { register, handleSubmit, reset, setValue, watch, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
+	const { register, handleSubmit, reset, setError, setValue, watch, control, formState: { errors, isSubmitting } } = useForm<FormValues>({
 		resolver: zodResolver(schema),
 		defaultValues: { username: '', password: '', nickname: '', email: '', phone: '', status: 1, roleIds: [] },
 	})
@@ -65,8 +65,8 @@ export function UserFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 			status: values.status,
 			roleIds: values.roleIds,
 		}
-		if (!isEdit && !values.password) {
-			toast.error('请输入密码')
+		if (!isEdit && values.password.length < 8) {
+			setError('password', { type: 'validate', message: '密码至少需要 8 位' })
 			return
 		}
 		const savedId = isEdit ? editing!.id : await http.post<string>('/users', { ...payload, username: values.username, password: values.password })
@@ -78,7 +78,7 @@ export function UserFormDialog({ open, onOpenChange, editing, onSaved }: Props) 
 
 	return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[80vh] max-w-md overflow-auto"><DialogHeader><DialogTitle>{isEdit ? '编辑用户' : '新增用户'}</DialogTitle><DialogDescription>{isEdit ? '修改用户基本信息和角色。' : '创建一个新的系统用户账号并分配角色。'}</DialogDescription></DialogHeader><form onSubmit={handleSubmit(onSubmit)}><FieldGroup>
 		<Field data-invalid={!!errors.username} data-disabled={isEdit}><FieldLabel htmlFor="user-username">用户名</FieldLabel><Input id="user-username" disabled={isEdit} aria-invalid={!!errors.username} {...register('username')} /><FieldError errors={[errors.username]} /></Field>
-		<Field data-disabled={isEdit}><FieldLabel htmlFor="user-password">密码{isEdit && '(改密走重置)'}</FieldLabel><Input id="user-password" type="password" disabled={isEdit} {...register('password')} /></Field>
+		<Field data-invalid={!!errors.password} data-disabled={isEdit}><FieldLabel htmlFor="user-password">密码{isEdit && '(改密走重置)'}</FieldLabel><Input id="user-password" type="password" disabled={isEdit} aria-invalid={!!errors.password} {...register('password')} /><FieldError errors={[errors.password]} /></Field>
 		<Field><FieldLabel htmlFor="user-nickname">昵称</FieldLabel><Input id="user-nickname" {...register('nickname')} /></Field>
 		<Field><FieldLabel htmlFor="user-email">邮箱</FieldLabel><Input id="user-email" {...register('email')} /></Field>
 		<Field><FieldLabel htmlFor="user-phone">手机</FieldLabel><Input id="user-phone" {...register('phone')} /></Field>

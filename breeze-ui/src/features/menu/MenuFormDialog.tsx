@@ -10,12 +10,23 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field'
 import { RhfSelect } from '@/components/RhfSelect'
-const schema = z.object({ parentId:z.string(), menuName:z.string().min(1,'请输入名称'), menuType:z.string().min(1), path:z.string().optional(), component:z.string().optional(), perms:z.string().optional(), icon:z.string().optional(), sort:z.number(), visible:z.number(), status:z.number() })
+const schema = z.object({
+	parentId: z.string(),
+	menuName: z.string().min(1, '请输入名称').max(64, '名称不能超过64个字符'),
+	menuType: z.enum(['M', 'C', 'F']),
+	path: z.string().max(255, '路径不能超过255个字符').optional(),
+	component: z.string().max(255, '组件不能超过255个字符').optional(),
+	perms: z.string().max(128, '权限标识不能超过128个字符').optional(),
+	icon: z.string().max(64, '图标不能超过64个字符').optional(),
+	sort: z.number().int('排序必须是整数').min(0, '排序不能为负数'),
+	visible: z.number().int().min(0).max(1),
+	status: z.number().int().min(0).max(1),
+})
 type FormValues=z.infer<typeof schema>
 interface Props { open:boolean; onOpenChange:(v:boolean)=>void; editing:Menu|null; menus:Menu[]; onSaved:()=>void }
 const empty:FormValues={parentId:'0',menuName:'',menuType:'C',path:'',component:'',perms:'',icon:'',sort:0,visible:1,status:1}
 export function MenuFormDialog({open,onOpenChange,editing,menus,onSaved}:Props){const isEdit=!!editing;const {register,handleSubmit,reset,control,formState:{errors,isSubmitting}}=useForm<FormValues>({resolver:zodResolver(schema),defaultValues:empty});useEffect(()=>{if(open)reset(editing?{parentId:editing.parentId??'0',menuName:editing.menuName,menuType:editing.menuType,path:editing.path??'',component:editing.component??'',perms:editing.perms??'',icon:editing.icon??'',sort:editing.sort,visible:editing.visible,status:editing.status}:empty)},[open,editing,reset]);const onSubmit=async(v:FormValues)=>{if(isEdit)await http.put(`/menus/${editing!.id}`,v);else await http.post('/menus',v);toast.success('保存成功');onSaved();onOpenChange(false)};const select=(id:string,name:keyof FormValues,options:{label:string;value:string}[],parse?:(v:string)=>unknown)=><RhfSelect id={id} control={control} name={name} className="w-full" options={options} parse={parse}/>;return <Dialog open={open} onOpenChange={onOpenChange}><DialogContent className="max-h-[85vh] max-w-lg overflow-auto"><DialogHeader><DialogTitle>{isEdit?'编辑菜单':'新增菜单'}</DialogTitle><DialogDescription>{isEdit?'修改菜单项配置。':'新增一个菜单、目录或按钮权限项。'}</DialogDescription></DialogHeader><form onSubmit={handleSubmit(onSubmit)}><FieldGroup>
-<Field><FieldLabel htmlFor="menu-parentId">父菜单</FieldLabel>{select('menu-parentId','parentId',[{label:'根菜单',value:'0'},...menus.map(m=>({label:m.menuName,value:m.id}))])}</Field>
+<Field><FieldLabel htmlFor="menu-parentId">父菜单</FieldLabel>{select('menu-parentId','parentId',[{label:'根菜单',value:'0'},...menus.filter(m=>m.menuType!=='F'&&m.id!==editing?.id).map(m=>({label:m.menuName,value:m.id}))])}</Field>
 <div className="grid grid-cols-2 gap-3"><Field data-invalid={!!errors.menuName}><FieldLabel htmlFor="menu-menuName">名称</FieldLabel><Input id="menu-menuName" aria-invalid={!!errors.menuName} {...register('menuName')}/><FieldError errors={[errors.menuName]}/></Field><Field><FieldLabel htmlFor="menu-menuType">类型</FieldLabel>{select('menu-menuType','menuType',[{label:'目录',value:'M'},{label:'菜单',value:'C'},{label:'按钮',value:'F'}])}</Field></div>
 <div className="grid grid-cols-2 gap-3"><Field><FieldLabel htmlFor="menu-path">路径</FieldLabel><Input id="menu-path" {...register('path')} placeholder="/system 或 user"/></Field><Field><FieldLabel htmlFor="menu-component">组件</FieldLabel><Input id="menu-component" {...register('component')} placeholder="system/user/index"/></Field></div>
 <div className="grid grid-cols-2 gap-3"><Field><FieldLabel htmlFor="menu-perms">权限标识</FieldLabel><Input id="menu-perms" {...register('perms')} placeholder="system:user:list"/></Field><Field><FieldLabel htmlFor="menu-icon">图标</FieldLabel><Input id="menu-icon" {...register('icon')} placeholder="lucide 名"/></Field></div>

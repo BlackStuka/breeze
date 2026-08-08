@@ -45,6 +45,7 @@ public class RoleService {
 	}
 
 	public Long create(RoleSaveRequest req) {
+		validateRoleCode(req.roleCode(), null);
 		SysRole r = new SysRole();
 		r.setRoleName(req.roleName());
 		r.setRoleCode(req.roleCode());
@@ -56,10 +57,11 @@ public class RoleService {
 
 	public void update(Long id, RoleSaveRequest req) {
 		SysRole r = requireRole(id);
+		validateRoleCode(req.roleCode(), id);
 		r.setRoleName(req.roleName());
 		r.setRoleCode(req.roleCode());
-		r.setSort(req.sort());
-		r.setStatus(req.status());
+		r.setSort(req.sort() == null ? r.getSort() : req.sort());
+		r.setStatus(req.status() == null ? r.getStatus() : req.status());
 		roleMapper.update(r);
 	}
 
@@ -96,6 +98,13 @@ public class RoleService {
 			throw new BusinessException(404, "角色不存在");
 		}
 		return role;
+	}
+
+	private void validateRoleCode(String roleCode, Long currentId) {
+		SysRole existing = roleMapper.selectByRoleCode(roleCode);
+		if (existing != null && !existing.getId().equals(currentId)) {
+			throw new BusinessException(409, "角色编码已存在");
+		}
 	}
 
 	private List<Long> validateMenuIds(List<Long> requested) {
